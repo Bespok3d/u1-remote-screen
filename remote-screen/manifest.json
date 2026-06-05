@@ -1,0 +1,73 @@
+{
+  "name": "remote-screen",
+  "title": "Remote Screen",
+  "version": "0.1.11",
+  "description": "Mirror the printer's on-device touchscreen to a browser. Low-overhead framebuffer capture, no UI changes on the device side.\n\nTo have the screen appear as a tile in Fluidd and Mainsail (alongside your cameras, no manual setup under Settings \u2192 Cameras), also install b3d://bespok3d-org/webcam-screen; registers the mirror as a Moonraker [webcam] iframe entry sized for the U1's 480:320 display.",
+  "tagline": "Stream your printer's framebuffer as MJPEG.",
+  "category": "screen",
+  "channel": "lts",
+  "printer_specific": true,
+  "published_at": "2025-07-30",
+  "updated_at": "2026-05-30",
+  "source": "https://github.com/bespok3d-org/plugin-remote-screen",
+  "publisher": "PLACEHOLDER",
+  "provides": [
+    {
+      "service": "screen-service"
+    }
+  ],
+  "require": [],
+  "conflicts": [],
+  "requires": {
+    "capabilities": [
+      "klipper-generic"
+    ],
+    "variables": []
+  },
+  "permissions": [
+    "web-location",
+    "managed-service",
+    "restart"
+  ],
+  "install": {
+    "place": [
+      {
+        "class": "web-location",
+        "src": "files/etc/nginx/locations/remote-screen.conf"
+      }
+    ],
+    "service": [
+      {
+        "name": "remote-screen",
+        "command": "/usr/bin/python3",
+        "args": [
+          "-u",
+          "$BESPOK3D_PLUGINS/remote-screen/files/bin/fb-http.py",
+          "--bind",
+          "127.0.0.1",
+          "--port",
+          "8092",
+          "--html-dir",
+          "$BESPOK3D_PLUGINS/remote-screen/files/html",
+          "--trace",
+          "$BESPOK3D/var/log/remote-screen-trace.log"
+        ],
+        "autostart": true,
+        "ports": [
+          8092
+        ]
+      }
+    ],
+    "restart": [
+      "web"
+    ]
+  },
+  "endpoints": [
+    {
+      "label": "Remote screen",
+      "path": "/screen/"
+    }
+  ],
+  "conflict_resolutions": [],
+  "files": []
+}

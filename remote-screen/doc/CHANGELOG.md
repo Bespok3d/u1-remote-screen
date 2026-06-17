@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.12
+
+- The screen now behaves like Fluidd with the Moonraker Login (force_logins) plugin. With login off
+  it connects directly. With login on it reuses your existing web-UI session when you have one
+  (seamless), and otherwise shows a login on the screen itself instead of failing or sending you
+  away. The stream authenticates with the Authorization header rather than a URL token the login
+  gate could not forward.
+
 ## 0.1.11
 
 - The recovery watchdog now re-arms panel wake on every gui respawn, so a screen

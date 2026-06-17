@@ -1,15 +1,17 @@
+function sessionKeys() {
+    const host = window.location.host.replace(/[^a-zA-Z0-9]/g, '_');
+    return { token: `user-token-${host}`, refresh: `refresh-token-${host}` };
+}
+
+function findStored(prefix) {
+    const key = Object.keys(localStorage).find(function(name) {
+        return name.startsWith(prefix) && localStorage.getItem(name);
+    });
+    return key ? localStorage.getItem(key) : null;
+}
+
 function getJWT() {
-    const instanceKey = `user-token-${window.location.host.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    const token = localStorage.getItem(instanceKey);
-    if (token) return token;
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('user-token-')) {
-            const t = localStorage.getItem(key);
-            if (t) return t;
-        }
-    }
-    return null;
+    return localStorage.getItem(sessionKeys().token) || findStored('user-token-');
 }
 
 function getAuthHeaders() {
@@ -17,17 +19,33 @@ function getAuthHeaders() {
     return jwt ? { Authorization: `Bearer ${jwt}` } : {};
 }
 
-async function getOneshotToken() {
-    try {
-        const response = await fetch('/access/oneshot_token', { headers: getAuthHeaders() });
-        if (response.status === 401) {
-            window.location.href = '/';
-            return null;
-        }
-        if (!response.ok) return null;
-        const data = await response.json();
-        return data.result || null;
-    } catch (err) {
-        return null;
-    }
+function storeSession(token, refreshToken) {
+    const keys = sessionKeys();
+    localStorage.setItem(keys.token, token);
+    if (refreshToken) localStorage.setItem(keys.refresh, refreshToken);
+}
+
+async function postJson(path, body) {
+    const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    return response.ok ? response.json() : null;
+}
+
+async function login(username, password) {
+    const data = await postJson('/access/login', { username: username, password: password });
+    if (!data) return false;
+    storeSession(data.result.token, data.result.refresh_token);
+    return true;
+}
+
+async function refreshSession() {
+    const refreshToken = localStorage.getItem(sessionKeys().refresh) || findStored('refresh-token-');
+    if (!refreshToken) return false;
+    const data = await postJson('/access/refresh_jwt', { refresh_token: refreshToken });
+    if (!data) return false;
+    storeSession(data.result.token, refreshToken);
+    return true;
 }

@@ -30,6 +30,12 @@ html, body { width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; }
     0% { transform: scale(0.5); opacity: 1; }
     100% { transform: scale(1.5); opacity: 0; }
 }
+#login { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(26,26,26,0.96); }
+#login.show { display: flex; }
+#login form { display: flex; flex-direction: column; gap: 10px; width: 230px; color: #ccc; font: 14px sans-serif; }
+#login input { padding: 9px; background: #2a2a2a; border: 1px solid #444; color: #eee; border-radius: 4px; }
+#login button { padding: 9px; background: #3a6ea5; border: 0; color: #fff; border-radius: 4px; cursor: pointer; }
+#login .err { min-height: 16px; color: #e66; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -37,6 +43,15 @@ html, body { width: 100%; height: 100%; background: #1a1a1a; overflow: hidden; }
 <img id="screen" draggable="false">
 </div>
 <div id="status">Connecting...</div>
+<div id="login">
+<form id="login-form">
+<div>Printer login</div>
+<input id="login-user" type="text" placeholder="Username" autocomplete="username">
+<input id="login-pass" type="password" placeholder="Password" autocomplete="current-password">
+<button type="submit">Log in</button>
+<div class="err" id="login-error"></div>
+</form>
+</div>
 <script>
 const img = document.getElementById('screen');
 const status = document.getElementById('status');
@@ -60,19 +75,67 @@ function applyScale() {
     img.height = img.naturalHeight * scale;
 }
 
-function streamUrl(token) {
-    return token ? 'stream.mjpg?token=' + encodeURIComponent(token) : 'stream.mjpg';
+img.onload = applyScale;
+
+const LATIN1 = new TextDecoder('latin1');
+const stream = { buffer: new Uint8Array(0), objectUrl: null };
+
+const loginUi = { panel: document.getElementById('login'), form: document.getElementById('login-form') };
+
+function showLogin() {
+    status.textContent = 'Login required';
+    loginUi.panel.classList.add('show');
 }
 
-img.onload = function() { status.textContent = 'Live'; applyScale(); };
-img.onerror = function() {
+function hideLogin() {
+    loginUi.panel.classList.remove('show');
+}
+
+function scheduleReconnect() {
     status.textContent = 'Reconnecting...';
-    setTimeout(async function() {
-        const token = await getOneshotToken();
-        if (token === null) return;
-        img.src = streamUrl(token) + '&_=' + Date.now();
-    }, 2000);
-};
+    stream.buffer = new Uint8Array(0);
+    setTimeout(startStream, 2000);
+}
+
+function appendStreamBytes(chunk) {
+    const merged = new Uint8Array(stream.buffer.length + chunk.length);
+    merged.set(stream.buffer, 0);
+    merged.set(chunk, stream.buffer.length);
+    stream.buffer = merged;
+}
+
+function takeLatestFrame() {
+    const text = LATIN1.decode(stream.buffer);
+    const bodyEnd = text.lastIndexOf('\r\n--frame');
+    if (bodyEnd === -1) return null;
+    const partStart = text.lastIndexOf('\r\n--frame', bodyEnd - 1);
+    const headerSep = text.indexOf('\r\n\r\n', partStart === -1 ? 0 : partStart + 2);
+    if (headerSep === -1 || headerSep + 4 > bodyEnd) return null;
+    const frame = stream.buffer.slice(headerSep + 4, bodyEnd);
+    stream.buffer = stream.buffer.slice(bodyEnd + 2);
+    return frame;
+}
+
+function showLatestFrame() {
+    const frame = takeLatestFrame();
+    if (frame === null) return;
+    const url = URL.createObjectURL(new Blob([frame], { type: 'image/jpeg' }));
+    const previous = stream.objectUrl;
+    stream.objectUrl = url;
+    img.src = url;
+    if (previous) URL.revokeObjectURL(previous);
+    status.textContent = 'Live';
+}
+
+// Recurses once per chunk; the await resumes each call in a fresh microtask, so the call
+// stack does not grow over a long-lived stream.
+async function pumpStream(reader) {
+    const result = await reader.read();
+    if (result.done) { scheduleReconnect(); return; }
+    appendStreamBytes(result.value);
+    showLatestFrame();
+    return pumpStream(reader);
+}
 
 function sendRelease(useKeepalive) {
     const options = { method: 'POST', headers: getAuthHeaders() };
@@ -80,12 +143,35 @@ function sendRelease(useKeepalive) {
     return fetch('touch?a=release', options).catch(function() {});
 }
 
-async function startStream() {
-    const token = await getOneshotToken();
-    if (token === null) return;
+async function connect(allowRefresh) {
     sendRelease(false);
-    img.src = streamUrl(token);
+    try {
+        const response = await fetch('stream.mjpg', { headers: getAuthHeaders() });
+        if (response.status === 401) {
+            if (allowRefresh && await refreshSession()) { connect(false); return; }
+            showLogin();
+            return;
+        }
+        if (!response.ok || !response.body) { scheduleReconnect(); return; }
+        hideLogin();
+        await pumpStream(response.body.getReader());
+    } catch {
+        scheduleReconnect();
+    }
 }
+
+function startStream() {
+    connect(true);
+}
+
+loginUi.form.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const errorText = document.getElementById('login-error');
+    errorText.textContent = '';
+    const ok = await login(document.getElementById('login-user').value, document.getElementById('login-pass').value);
+    if (ok) { hideLogin(); startStream(); return; }
+    errorText.textContent = 'Login failed';
+});
 
 const HEARTBEAT_MS = 300;
 const touchState = { dragging: false, moveInFlight: false, pendingMove: null, heartbeat: null };

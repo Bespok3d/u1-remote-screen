@@ -7,7 +7,7 @@ phone. The screen is mirrored live and your taps are sent back to the printer.
 
 - Full screen mirroring with touch control.
 - Works in desktop, tablet, and phone browsers.
-- Authentication inherited from Fluidd/Mainsail.
+- Works with the Moonraker Login plugin: it reuses your web UI session, or signs you in on the screen itself.
 - Installable as a Progressive Web App (PWA).
 
 ## Access

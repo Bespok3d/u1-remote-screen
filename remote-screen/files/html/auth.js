@@ -28,6 +28,31 @@ function captureApiKeyFromUrl() {
     if (key) storeApiKey(key.trim());
 }
 
+function removeStoredByPrefix(prefix) {
+    Object.keys(localStorage)
+        .filter(function(name) { return name.startsWith(prefix); })
+        .forEach(function(name) { localStorage.removeItem(name); });
+}
+
+// Delete across every path the cookie might have been written at, with both Max-Age and a past expiry,
+// so a webview that ignores one form still drops it.
+function deleteStreamCookie(name) {
+    ['/screen', '/screen/', '/'].forEach(function(path) {
+        document.cookie = `${name}=; path=${path}; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    });
+}
+
+// Wipe EVERY stored credential, not just this host's: getJWT()/refreshSession() fall back to
+// findStored('user-token-'/'refresh-token-') across all keys, so a leftover from another host slug
+// (junior flip-flops between .109 and .66) would otherwise be re-read and re-set as the stream cookie.
+function clearStoredCredentials() {
+    removeStoredByPrefix('user-token-');
+    removeStoredByPrefix('refresh-token-');
+    removeStoredByPrefix('screen-apikey-');
+    deleteStreamCookie('screen_token');
+    deleteStreamCookie('screen_apikey');
+}
+
 function findStored(prefix) {
     const key = Object.keys(localStorage).find(function(name) {
         return name.startsWith(prefix) && localStorage.getItem(name);
@@ -94,4 +119,22 @@ async function refreshSession() {
     if (!data) return false;
     storeSession(data.result.token, refreshToken);
     return true;
+}
+
+// Decide how the stream should come up by probing the gated snapshot. probeSnapshot(authed) returns the
+// fetch Response: authed=true carries the stored credential, authed=false is a TRULY anonymous probe
+// (no header AND no cookie). Returns 'stream' (open or authenticated -> render), 'login' (gated, real
+// credentials needed), or 'retry' (a transient non-401 failure -> reconnect). The self-heal lives here:
+// a stale credential over an open printer makes the authed probe 401 while the anonymous probe is
+// served, so we wipe the stale credential and stream instead of prompting. Pure of the DOM (the caller
+// owns showStream/showLogin/reconnect), so it is unit-testable.
+async function resolveStreamAccess(probeSnapshot, allowRefresh) {
+    const authed = await probeSnapshot(true);
+    if (authed.ok) return 'stream';
+    if (authed.status !== 401) return 'retry';
+    if (allowRefresh && await refreshSession()) return resolveStreamAccess(probeSnapshot, false);
+    const anonymous = await probeSnapshot(false);
+    if (!anonymous.ok) return 'login';
+    clearStoredCredentials();
+    return 'stream';
 }

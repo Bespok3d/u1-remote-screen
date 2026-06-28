@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.19
+
+- Internal only (no behavior change): the connection-decision logic (including the stale-sign-in
+  self-heal) was extracted into a unit-tested function, with regression tests covering the auth
+  scenarios, so these fixes can't silently break in future.
+
+## 0.1.18
+
+- Fixes the screen failing to connect (login prompt, then a broken image) after Moonraker Login was
+  turned off, when you had signed in earlier. Any leftover sign-in - stored token or stream cookie,
+  including one left over from the printer's other IP address - is now fully cleared when the screen
+  is open, so it connects on its own without a login or a manual cache clear. (The internal stream
+  script was also renamed.)
+
 ## 0.1.15
 
 - Fixes the screen sometimes getting stuck on "Connecting..." after an update, where only a

@@ -32,8 +32,8 @@ def test_auth_credential_reaches_stream_via_cookie() -> None:
 
 def test_api_key_supported_as_alternative_credential() -> None:
     # Moonraker accepts a static API key via X-Api-Key (bypasses force_logins). The screen takes it
-    # from the URL (?api_key=) or the login form; fetches send the header, the <img> stream sends the
-    # screen_apikey cookie, and /auth_check forwards either to Moonraker. Device-verified 2026-06-28.
+    # from the URL (?api_key=) or the login form; fetches send the header, the <img> stream sends
+    # the screen_apikey cookie, /auth_check forwards either. Device-verified 2026-06-28.
     assert "captureApiKeyFromUrl" in AUTH_JS
     assert "api_key" in AUTH_JS
     assert "'X-Api-Key'" in AUTH_JS
@@ -44,12 +44,31 @@ def test_api_key_supported_as_alternative_credential() -> None:
 
 
 def test_screen_assets_are_not_cached_to_avoid_version_skew() -> None:
-    # A browser-heuristically-cached auth.js paired with a fresh index.html threw a ReferenceError and
-    # stuck the page on "Connecting..." (only an empty-cache reload recovered, which end users can't do).
-    # The page + script load no-store, and index.html requests a version-stamped auth.js, so the two can
-    # never mismatch. Regression: 2026-06-28.
+    # A heuristically-cached auth.js paired with a fresh index.html threw a ReferenceError and stuck
+    # the page on "Connecting..." (only an empty-cache reload recovered, which end users can't do).
+    # The page + script load no-store, and index.html requests a version-stamped auth.js, so the two
+    # can never mismatch. Regression: 2026-06-28.
     assert 'add_header Cache-Control "no-store"' in NGINX_CONF
     assert "auth.js?v=" in HTML
+
+
+def test_stale_credential_self_heals_when_screen_is_open() -> None:
+    # A past login leaves a stale JWT; with Moonraker login off, Moonraker 401s the explicit bad
+    # token even though trusted-IP serves an anonymous request. The client retries with no
+    # credential and, if served, drops the stale credential and streams, so a prior login never
+    # locks an open screen out (the OrcaSlicer-asks-after-login-off bug). Device-confirmed.
+    # The decision flow lives in resolveStreamAccess (auth.js, behaviorally tested in
+    # auth.behavior.test.mjs); connect() wires it up. The anonymous retry must carry NO credential -
+    # credentials:'omit' drops the stale cookie too, not just the header (sending the cookie was
+    # what kept 401ing the "anonymous" retry).
+    assert "resolveStreamAccess" in AUTH_JS
+    assert "resolveStreamAccess" in HTML
+    assert "credentials: 'omit'" in HTML
+    assert "clearStoredCredentials" in AUTH_JS
+    # the wipe must cover ALL host slugs (getJWT falls back to findStored across every user-token-*,
+    # so a leftover from junior's other IP would be re-read) and delete the cookie across paths.
+    assert "removeStoredByPrefix('user-token-')" in AUTH_JS
+    assert "deleteStreamCookie('screen_token')" in AUTH_JS
 
 
 def test_auth_status_probed_with_finite_fetch() -> None:

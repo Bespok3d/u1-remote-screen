@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import mmap
 import os
+import threading
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
@@ -22,6 +23,16 @@ BPP_RGBA = 32
 BPP_RGB565 = 16
 JPEG_QUALITY = 75
 STREAM_FPS = 15
+
+# One shared producer reads fb0 + encodes once per frame for every viewer, so N browsers watching
+# the screen cost one read+encode, not N (HW-measured ~8% of a core per viewer with the old
+# per-connection loop). It parks at zero viewers (no fb0 work when nobody is watching) and adapts
+# its frame rate to system load so the stream always yields CPU to Klipper/printing: full STREAM_FPS
+# when the box is idle, easing to FLOOR_FPS as load-per-core climbs.
+FLOOR_FPS = 5
+STREAM_HEARTBEAT_S = 1.0
+LOAD_EASE_PER_CORE = 0.7
+LOAD_FLOOR_PER_CORE = 1.5
 
 class FbVarScreeninfo(ctypes.Structure):
     _fields_ = [
@@ -92,6 +103,7 @@ class Framebuffer:
         self.line_length = 0
         self._cache_hash = None
         self._cache_jpeg = None
+        self._lock = threading.Lock()
         self._open()
 
     def _open(self):
@@ -134,6 +146,10 @@ class Framebuffer:
         return Image.frombytes('RGB', size, raw, 'raw', 'BGR', self.line_length)
 
     def get_snapshot(self, client_etag=None):
+        with self._lock:
+            return self._snapshot_locked(client_etag)
+
+    def _snapshot_locked(self, client_etag):
         self.mm.seek(self._current_offset())
         raw = self.mm.read(self.line_length * self.height)
         raw_hash = hashlib.md5(raw).hexdigest()[:16]
@@ -154,8 +170,99 @@ class Framebuffer:
         if self.fd:
             os.close(self.fd)
 
+
+def read_load_per_core(cpus):
+    try:
+        with open('/proc/loadavg') as handle:
+            one_minute = float(handle.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return 0.0
+    return one_minute / max(1, cpus)
+
+
+class LoadPacer:
+    """Chooses the producer frame rate from system load so the stream always yields CPU to
+    Klipper/printing: full active_fps while the box has headroom, easing to floor_fps as load
+    climbs. Board-agnostic - load is read per core, so a smaller board backs off sooner."""
+
+    def __init__(self, active_fps=STREAM_FPS, floor_fps=FLOOR_FPS,
+                 ease_at=LOAD_EASE_PER_CORE, floor_at=LOAD_FLOOR_PER_CORE):
+        self.active_fps = active_fps
+        self.floor_fps = floor_fps
+        self.ease_at = ease_at
+        self.floor_at = floor_at
+
+    def fps_for(self, load_per_core):
+        if load_per_core <= self.ease_at:
+            return self.active_fps
+        if load_per_core >= self.floor_at:
+            return self.floor_fps
+        fraction = (load_per_core - self.ease_at) / (self.floor_at - self.ease_at)
+        return round(self.active_fps - fraction * (self.active_fps - self.floor_fps))
+
+    def interval(self, load_per_core):
+        return 1.0 / self.fps_for(load_per_core)
+
+
+class FrameHub:
+    """One framebuffer producer shared by every viewer. The fb0 read + JPEG encode happens once per
+    frame no matter how many browsers watch, and the producer parks (no fb0 work) while nobody is
+    connected, resuming the instant a viewer returns. Viewers read the latest frame through
+    wait_frame. Lifecycle and pacing stay simple so produce_once + counting are unit-testable."""
+
+    def __init__(self, framebuffer, pacer, cpus, sleep=time.sleep, load_reader=read_load_per_core):
+        self.framebuffer = framebuffer
+        self.pacer = pacer
+        self.cpus = cpus
+        self._sleep = sleep
+        self._load_reader = load_reader
+        self._cond = threading.Condition()
+        self._viewers = 0
+        self._latest_etag = None
+        self._latest_jpeg = None
+
+    def start(self):
+        threading.Thread(target=self._run, name='frame-producer', daemon=True).start()
+
+    def subscribe(self):
+        with self._cond:
+            self._viewers += 1
+            self._cond.notify_all()
+
+    def unsubscribe(self):
+        with self._cond:
+            self._viewers -= 1
+
+    def wait_frame(self, last_etag, timeout):
+        with self._cond:
+            self._cond.wait_for(lambda: self._latest_etag != last_etag, timeout)
+            return self._latest_etag, self._latest_jpeg
+
+    def _await_viewers(self):
+        with self._cond:
+            self._cond.wait_for(lambda: self._viewers > 0)
+
+    def _publish(self, etag, jpeg):
+        with self._cond:
+            self._latest_etag = etag
+            self._latest_jpeg = jpeg
+            self._cond.notify_all()
+
+    def produce_once(self):
+        etag, jpeg = self.framebuffer.get_snapshot(self._latest_etag)
+        if jpeg is not None:
+            self._publish(etag, jpeg)
+        return self.pacer.interval(self._load_reader(self.cpus))
+
+    def _run(self):
+        while True:
+            self._await_viewers()
+            self._sleep(self.produce_once())
+
+
 class ScreenHandler(SimpleHTTPRequestHandler):
     framebuffer = None
+    hub = None
     touch = None
     html_dir = None
 
@@ -205,13 +312,16 @@ class ScreenHandler(SimpleHTTPRequestHandler):
             self.send_error(500, str(e))
 
     def handle_stream_mjpeg(self):
+        self._begin_mjpeg()
+        self.hub.subscribe()
         try:
-            self._begin_mjpeg()
             self._stream_frames()
         except (BrokenPipeError, ConnectionResetError):
             pass
-        except Exception as e:
+        except OSError as e:
             log(f"Stream error: {e}")
+        finally:
+            self.hub.unsubscribe()
 
     def _begin_mjpeg(self):
         self.send_response(200)
@@ -223,13 +333,12 @@ class ScreenHandler(SimpleHTTPRequestHandler):
         last_etag = None
         last_jpeg = None
         while True:
-            etag, jpeg_data = self.framebuffer.get_snapshot(last_etag)
+            etag, jpeg_data = self.hub.wait_frame(last_etag, STREAM_HEARTBEAT_S)
             if jpeg_data is not None:
                 last_etag = etag
                 last_jpeg = jpeg_data
             if last_jpeg is not None:
                 self._write_mjpeg_frame(last_jpeg)
-            time.sleep(1 / STREAM_FPS)
 
     def _write_mjpeg_frame(self, jpeg):
         self.wfile.write(b'--frame\r\n')
@@ -279,6 +388,13 @@ def make_tracer(path):
     return lambda line: handle.write(line + '\n')
 
 
+def configure_handler(fb, hub, controller, html_dir):
+    ScreenHandler.framebuffer = fb
+    ScreenHandler.hub = hub
+    ScreenHandler.touch = controller
+    ScreenHandler.html_dir = os.fspath(html_dir)
+
+
 def main():
     args = parse_args()
     fb = Framebuffer(args.fb)
@@ -286,9 +402,9 @@ def main():
     controller = TouchController(writer.emit, writer.scale, make_tracer(args.trace))
     GuiWatchdog(log)
 
-    ScreenHandler.framebuffer = fb
-    ScreenHandler.touch = controller
-    ScreenHandler.html_dir = os.fspath(args.html_dir)
+    hub = FrameHub(fb, LoadPacer(), os.cpu_count() or 1)
+    hub.start()
+    configure_handler(fb, hub, controller, args.html_dir)
 
     server = ThreadingHTTPServer((args.bind, args.port), ScreenHandler)
     log_routes(args.bind, args.port)

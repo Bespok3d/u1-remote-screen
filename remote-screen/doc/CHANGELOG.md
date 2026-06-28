@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.1.19
+## 0.1.20
+
+- Lighter on the printer when several people watch the screen. The framebuffer is now captured and
+  encoded once and shared by every viewer, instead of each open browser tab doing its own capture,
+  so two or three watchers cost about the same as one.
+- The screen stream now eases its frame rate down when the printer is busy (for example mid-print)
+  and runs at full rate when there is spare capacity, so mirroring never steals time from printing.
+  It still uses nothing at all while no one is watching.
 
 - Internal only (no behavior change): the connection-decision logic (including the stale-sign-in
   self-heal) was extracted into a unit-tested function, with regression tests covering the auth

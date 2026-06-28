@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.15
+
+- Fixes the screen sometimes getting stuck on "Connecting..." after an update, where only a
+  manual cache clear recovered it. The page and its script are no longer cached, so a normal
+  reload always loads a fresh, matching set.
+
+## 0.1.14
+
+- With Moonraker Login on, the screen can now authenticate with a Moonraker API key as well as a
+  username and password. Put it on the screen URL as ?api_key=YOUR_KEY (handy as the slicer's
+  Device UI address, so the screen opens already signed in) or paste it into the login panel.
+
+## 0.1.13
+
+- Fixes the screen staying on "Reconnecting..." inside OrcaSlicer (and other embedded
+  webviews). The stream again renders through a native image element, which every browser and
+  webview can show, instead of a streaming fetch their engines do not support. Works the same
+  directly at /screen/ and as a tile in Fluidd/Mainsail. With Moonraker Login off the screen
+  is freely accessible; with it on the stream stays protected, carrying your session in a
+  cookie since an image request cannot send a login header.
+
 ## 0.1.12
 
 - The screen now behaves like Fluidd with the Moonraker Login (force_logins) plugin. With login off

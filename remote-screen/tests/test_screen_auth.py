@@ -8,15 +8,55 @@ NGINX_CONF = (PLUGIN_DIR / "files/etc/nginx/locations/remote-screen.conf").read_
 SCREEN_ROUTES = ("/screen/stream.mjpg", "/screen/snapshot.jpg", "/screen/snapshot", "/screen/touch")
 
 
-def test_stream_authenticates_with_header_not_query_token() -> None:
-    # The view must carry its credential in the Authorization header (the only path nginx
-    # auth_request forwards to Moonraker); a ?token= query param is dropped, so it 401s under
-    # force_logins. Device-verified 2026-06-17.
-    assert "fetch('stream.mjpg'" in HTML
-    assert "getAuthHeaders()" in HTML
-    assert "token=" not in HTML
+def test_stream_renders_via_native_img_not_streaming_fetch() -> None:
+    # OrcaSlicer's embedded webview cannot consume a streaming fetch() response body, so the
+    # MJPEG stream MUST render through a native <img> multipart element (universally supported).
+    # A fetch()+getReader() pump regressed OrcaSlicer to an endless "Reconnecting...".
+    assert "getReader" not in HTML
+    assert "response.body" not in HTML
+    assert "img.src = 'stream.mjpg" in HTML
     assert "oneshot" not in HTML.lower()
     assert "oneshot" not in AUTH_JS.lower()
+
+
+def test_auth_credential_reaches_stream_via_cookie() -> None:
+    # The <img> cannot send an Authorization header and the nginx auth_request subrequest drops
+    # the parent query string, so the JWT rides the screen_token cookie that /auth_check turns
+    # back into a Bearer header. Login OFF / trusted-IP: no JWT -> the cookie is cleared.
+    assert "applyStreamCookie" in AUTH_JS
+    assert "screen_token" in AUTH_JS
+    assert "applyStreamCookie()" in HTML
+    assert "$cookie_screen_token" in NGINX_CONF
+    assert "Authorization $screen_cred" in NGINX_CONF
+
+
+def test_api_key_supported_as_alternative_credential() -> None:
+    # Moonraker accepts a static API key via X-Api-Key (bypasses force_logins). The screen takes it
+    # from the URL (?api_key=) or the login form; fetches send the header, the <img> stream sends the
+    # screen_apikey cookie, and /auth_check forwards either to Moonraker. Device-verified 2026-06-28.
+    assert "captureApiKeyFromUrl" in AUTH_JS
+    assert "api_key" in AUTH_JS
+    assert "'X-Api-Key'" in AUTH_JS
+    assert "screen_apikey" in AUTH_JS
+    assert 'id="login-apikey"' in HTML
+    assert "$cookie_screen_apikey" in NGINX_CONF
+    assert "X-Api-Key $screen_apikey" in NGINX_CONF
+
+
+def test_screen_assets_are_not_cached_to_avoid_version_skew() -> None:
+    # A browser-heuristically-cached auth.js paired with a fresh index.html threw a ReferenceError and
+    # stuck the page on "Connecting..." (only an empty-cache reload recovered, which end users can't do).
+    # The page + script load no-store, and index.html requests a version-stamped auth.js, so the two can
+    # never mismatch. Regression: 2026-06-28.
+    assert 'add_header Cache-Control "no-store"' in NGINX_CONF
+    assert "auth.js?v=" in HTML
+
+
+def test_auth_status_probed_with_finite_fetch() -> None:
+    # The login-vs-live decision uses a finite snapshot fetch (every webview handles a finite
+    # body); only the endless stream must avoid fetch.
+    assert "fetch('snapshot.jpg'" in HTML
+    assert "getAuthHeaders()" in HTML
 
 
 def test_works_in_both_modes_like_fluidd() -> None:

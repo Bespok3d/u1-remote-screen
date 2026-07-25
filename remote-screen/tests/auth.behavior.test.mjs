@@ -58,7 +58,7 @@ function makeDocument() {
 
 function loadAuth(options) {
   const search = (options && options.search) || ''
-  const host = (options && options.host) || '10.6.9.109'
+  const host = (options && options.host) || '192.0.2.109'
   const fetchImpl = (options && options.fetch) || function () { throw new Error('fetch not stubbed') }
   const sandbox = {
     localStorage: makeLocalStorage(),

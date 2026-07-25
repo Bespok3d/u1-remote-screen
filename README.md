@@ -17,7 +17,7 @@ u1-remote-screen/
 ```
 
 The plugin declares WHAT (destination classes + restart hooks), never paths or raw commands; the
-printer-side adapter realizes it. See `Bespok3d_history/doc/anatomy-of-a-plugin.md`.
+printer-side adapter realizes it.
 
 ## Build locally
 

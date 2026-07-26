@@ -56,9 +56,20 @@ function makeDocument() {
   return doc
 }
 
+// The printer the stub browser is pointed at, and a second printer address for the cross-host cases.
+// auth.js derives every credential key from window.location.host, so the tests derive them the same
+// way instead of spelling the slug out: a hardcoded slug silently stopped matching when the fixture
+// host moved off the real LAN address, and three tests asserted against keys nothing ever wrote.
+const STUB_PRINTER_HOST = '192.0.2.109'
+const OTHER_PRINTER_HOST = '192.0.2.66'
+
+function credentialKey(prefix, printerHost) {
+  return `${prefix}-${printerHost.replace(/[^a-zA-Z0-9]/g, '_')}`
+}
+
 function loadAuth(options) {
   const search = (options && options.search) || ''
-  const host = (options && options.host) || '192.0.2.109'
+  const host = (options && options.host) || STUB_PRINTER_HOST
   const fetchImpl = (options && options.fetch) || function () { throw new Error('fetch not stubbed') }
   const sandbox = {
     localStorage: makeLocalStorage(),
@@ -87,16 +98,16 @@ test('getAuthHeaders prefers an API key, then a JWT, then nothing', () => {
   // check compares against the test's own {} literal rather than the vm realm's Object.prototype.
   assert.deepEqual({ ...auth.getAuthHeaders() }, {})
 
-  auth.localStorage.setItem('user-token-10_6_9_109', 'jwt1')
+  auth.localStorage.setItem(credentialKey('user-token', STUB_PRINTER_HOST), 'jwt1')
   assert.deepEqual({ ...auth.getAuthHeaders() }, { Authorization: 'Bearer jwt1' })
 
-  auth.localStorage.setItem('screen-apikey-10_6_9_109', 'key1')
+  auth.localStorage.setItem(credentialKey('screen-apikey', STUB_PRINTER_HOST), 'key1')
   assert.deepEqual({ ...auth.getAuthHeaders() }, { 'X-Api-Key': 'key1' })
 })
 
 test('getJWT falls back to a user-token from any host slug (the .109/.66 flip-flop)', () => {
   const auth = loadAuth()
-  auth.localStorage.setItem('user-token-10_6_9_66', 'jwt66')
+  auth.localStorage.setItem(credentialKey('user-token', OTHER_PRINTER_HOST), 'jwt66')
   assert.equal(auth.getJWT(), 'jwt66')
 })
 
@@ -112,13 +123,13 @@ test('captureApiKeyFromUrl stores ?api_key= and ?apikey=', () => {
 
 test('applyStreamCookie carries the right credential as the stream cookie', () => {
   const withJwt = loadAuth()
-  withJwt.localStorage.setItem('user-token-10_6_9_109', 'jwtX')
+  withJwt.localStorage.setItem(credentialKey('user-token', STUB_PRINTER_HOST), 'jwtX')
   withJwt.applyStreamCookie()
   assert.equal(cookieNames(withJwt.document).includes('screen_token'), true)
   assert.equal(cookieNames(withJwt.document).includes('screen_apikey'), false)
 
   const withKey = loadAuth()
-  withKey.localStorage.setItem('screen-apikey-10_6_9_109', 'keyX')
+  withKey.localStorage.setItem(credentialKey('screen-apikey', STUB_PRINTER_HOST), 'keyX')
   withKey.applyStreamCookie()
   assert.equal(cookieNames(withKey.document).includes('screen_apikey'), true)
   assert.equal(cookieNames(withKey.document).includes('screen_token'), false)
@@ -130,10 +141,10 @@ test('applyStreamCookie carries the right credential as the stream cookie', () =
 
 test('clearStoredCredentials wipes every host slug + the cookies, and nothing re-seeds them', () => {
   const auth = loadAuth()
-  auth.localStorage.setItem('user-token-10_6_9_109', 'a')
-  auth.localStorage.setItem('user-token-10_6_9_66', 'b')
-  auth.localStorage.setItem('refresh-token-10_6_9_66', 'r')
-  auth.localStorage.setItem('screen-apikey-10_6_9_109', 'k')
+  auth.localStorage.setItem(credentialKey('user-token', STUB_PRINTER_HOST), 'a')
+  auth.localStorage.setItem(credentialKey('user-token', OTHER_PRINTER_HOST), 'b')
+  auth.localStorage.setItem(credentialKey('refresh-token', OTHER_PRINTER_HOST), 'r')
+  auth.localStorage.setItem(credentialKey('screen-apikey', STUB_PRINTER_HOST), 'k')
   auth.applyStreamCookie()
 
   auth.clearStoredCredentials()
@@ -157,7 +168,7 @@ test('login stores the token + refresh token', async () => {
   })
   assert.equal(await auth.login('u', 'p'), true)
   assert.equal(auth.getJWT(), 't')
-  assert.equal(auth.localStorage.getItem('refresh-token-10_6_9_109'), 'rt')
+  assert.equal(auth.localStorage.getItem(credentialKey('refresh-token', STUB_PRINTER_HOST)), 'rt')
 })
 
 function response(ok, status) {
@@ -194,7 +205,7 @@ test('resolveStreamAccess: a transient non-401 failure -> retry (reconnect, no l
 
 test('resolveStreamAccess: stale credential over an open printer self-heals (401 then anon ok -> stream + wiped)', async () => {
   const auth = loadAuth()
-  auth.localStorage.setItem('user-token-10_6_9_66', 'stale')
+  auth.localStorage.setItem(credentialKey('user-token', OTHER_PRINTER_HOST), 'stale')
   auth.applyStreamCookie()
   // authed probe 401s (stale token), anonymous probe is served (trusted-IP, login off).
   const rec = probeRecorder([response(false, 401), response(true)])
@@ -218,7 +229,7 @@ test('resolveStreamAccess: 401 then a successful refresh re-probes authenticated
       return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ result: { token: 'fresh' } }) } })
     },
   })
-  auth.localStorage.setItem('refresh-token-10_6_9_109', 'rt')
+  auth.localStorage.setItem(credentialKey('refresh-token', STUB_PRINTER_HOST), 'rt')
   // First authed probe 401s; after refresh, the retry (still authed) is served.
   const rec = probeRecorder([response(false, 401), response(true)])
   assert.equal(await auth.resolveStreamAccess(rec.probe, true), 'stream')
@@ -235,7 +246,7 @@ test('refreshSession needs a stored refresh token and adopts the new JWT', async
       return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ result: { token: 't2' } }) } })
     },
   })
-  withToken.localStorage.setItem('refresh-token-10_6_9_109', 'rt')
+  withToken.localStorage.setItem(credentialKey('refresh-token', STUB_PRINTER_HOST), 'rt')
   assert.equal(await withToken.refreshSession(), true)
   assert.equal(withToken.getJWT(), 't2')
 })

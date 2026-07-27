@@ -7,6 +7,7 @@ phone. The screen is mirrored live and your taps are sent back to the printer.
 
 - Full screen mirroring with touch control.
 - Works in desktop, tablet, and phone browsers.
+- Shows up as a tile inside Fluidd and Mainsail, next to your cameras, with no manual setup.
 - Works with the Moonraker Login plugin: it reuses your web UI session, or signs you in on the screen itself.
 - Installable as a Progressive Web App (PWA).
 
@@ -14,9 +15,11 @@ phone. The screen is mirrored live and your taps are sent back to the printer.
 
 Once installed: `http://<printer-ip>/screen/`
 
-To show it as a tile inside Fluidd and Mainsail (next to your cameras), also install
-**webcam-screen**, which registers the mirror as a Moonraker `[webcam]` iframe sized for
-the U1's 480x320 display.
+The screen also appears as a tile inside Fluidd and Mainsail, next to your cameras: the
+plugin registers the mirror as a Moonraker `[webcam]` iframe sized for the U1's 480x320
+display. You choose the name it shows under when you install it (**Screen name in
+Fluidd/Mainsail**, default "Printer Screen"), and you can change it later from the plugin's
+settings.
 
 ## How it works
 

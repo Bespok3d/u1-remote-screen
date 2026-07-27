@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.21
+
+- The screen now appears as a tile in Fluidd and Mainsail on its own, next to your cameras. That used
+  to need a second plugin ("Printer Screen as Camera"); it is now part of Remote Screen, so installing
+  Remote Screen is all it takes. You pick the name the tile shows under when you install it, and you
+  can change it later from the plugin's settings.
+- If you already have "Printer Screen as Camera" installed, remove it before updating. Keeping both
+  would register the screen twice in Fluidd and Mainsail, so the app blocks the update until it is
+  gone.
+
 ## 0.1.20
 
 - Lighter on the printer when several people watch the screen. The framebuffer is now captured and

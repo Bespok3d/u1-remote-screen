@@ -1,5 +1,11 @@
 # u1-remote-screen
 
+[![licence](https://img.shields.io/badge/licence-GPL--3.0-blue)](LICENSE)
+[![release](https://img.shields.io/github/v/release/Bespok3d/u1-remote-screen)](https://github.com/Bespok3d/u1-remote-screen/releases)
+[![version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FBespok3d%2Fu1-remote-screen%2Fmain%2Fremote-screen%2Fmanifest.json&query=%24.version&label=version&color=blue)](remote-screen/manifest.json)
+![printer](https://img.shields.io/badge/printer-Snapmaker%20U1-informational)
+![stock firmware](https://img.shields.io/badge/stock%20firmware-no%20flashing-brightgreen)
+
 Stream your printer's framebuffer as MJPEG.
 
 A solo Bespok3d plugin repo: it ships one plugin (`remote-screen`) and publishes a single index atom into `Bespok3d/main-index/atoms/`.

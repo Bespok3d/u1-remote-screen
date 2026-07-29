@@ -1,3 +1,5 @@
+<!-- Originally icon.svg from the Extended Firmware overlay 61-app-remote-screen (paxx12), GPL-3.0.
+     Modified by the Bespok3d project on 2026-07-28: the descriptive comments were removed. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
   <rect x="64" y="100" width="128" height="120" rx="8" fill="#f0f0f0" stroke="#333" stroke-width="4"/>
   <rect x="80" y="140" width="96" height="60" rx="4" fill="#1a1a1a" opacity="0.3"/>

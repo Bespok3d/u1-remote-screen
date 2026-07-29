@@ -1,3 +1,6 @@
+// Rewritten by the Bespok3d project from auth.js in the Extended Firmware overlay
+// 61-app-remote-screen (paxx12), GPL-3.0. Origin recorded 2026-07-28.
+
 function sessionKeys() {
     const host = window.location.host.replace(/[^a-zA-Z0-9]/g, '_');
     return {

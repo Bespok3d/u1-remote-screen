@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.22
+
+- Licensing only, nothing about how the plugin works has changed. The files it installs that came
+  from other projects now carry those projects' own licence notices, plus a line recording what
+  Bespok3d changed in them and when.
+
 ## 0.1.21
 
 - The screen now appears as a tile in Fluidd and Mainsail on its own, next to your cameras. That used

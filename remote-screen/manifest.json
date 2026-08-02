@@ -4,7 +4,7 @@
   "version": "0.1.22",
   "license": "GPL-3.0-only",
   "author": "bespoked",
-  "min_daemon_version": "0.10.1-dev",
+  "min_daemon_version": "0.10.1",
   "description": "Mirror the printer's on-device touchscreen to a browser. Low-overhead framebuffer capture, no UI changes on the device side.\n\nThe screen also appears as a tile inside Fluidd and Mainsail, alongside your cameras, with no manual setup: the plugin registers the mirror as a Moonraker [webcam] iframe entry sized for the U1's 480:320 display. You pick the name it shows under when you install it.",
   "tagline": "Stream your printer's framebuffer as MJPEG.",
   "category": "screen",

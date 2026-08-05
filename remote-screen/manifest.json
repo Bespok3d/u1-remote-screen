@@ -2,7 +2,7 @@
   "name": "remote-screen",
   "title": "Remote Screen",
   "version": "0.1.22",
-  "license": "GPL-3.0-only",
+  "license": "https://github.com/Bespok3d/u1-remote-screen/blob/dev/remote-screen/doc/LICENSE",
   "author": "bespoked",
   "min_daemon_version": "0.10.1",
   "description": "Mirror the printer's on-device touchscreen to a browser. Low-overhead framebuffer capture, no UI changes on the device side.\n\nThe screen also appears as a tile inside Fluidd and Mainsail, alongside your cameras, with no manual setup: the plugin registers the mirror as a Moonraker [webcam] iframe entry sized for the U1's 480:320 display. You pick the name it shows under when you install it.",
@@ -101,5 +101,6 @@
     }
   ],
   "conflict_resolutions": [],
-  "files": []
+  "files": [],
+  "attributions": "# Attributions - remote-screen\n\n**Plugin author:** Bespok3d, with the web app from the Extended Firmware overlay `61-app-remote-screen` by @horzadome; the framebuffer server here is written from scratch\n\nMirrors and controls the printer's screen from a browser.\n\n| Upstream project | Author | Licence | Needed at runtime | Code ships in this package |\n| --- | --- | --- | --- | --- |\n| Extended Firmware overlay `61-app-remote-screen` | the PWA by @horzadome, packaged by paxx12 | GPL-3.0 | no | yes |\n\nThe web app in this package comes from the Extended Firmware overlay `61-app-remote-screen`,\nGPL-3.0, whose PWA is credited to @horzadome and whose framebuffer double-buffering in\n`fb-http-server.py` is credited to @suchmememanyskill; packaging by paxx12. `html/manifest.json`\nships with one value changed (`start_url`) and `html/icon.svg` with its comments removed, and parts\nof `html/index.html`, `html/auth.js` and the nginx location file match that overlay. Each of those\nfiles carries a dated note of what changed, except `manifest.json`, which is JSON and cannot hold a\ncomment.\n\nThe framebuffer server, the touch input path and the watchdog are written from scratch.\n"
 }

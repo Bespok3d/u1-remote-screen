@@ -35,6 +35,9 @@ npx b3-builder build --source ./remote-screen --atom-repo Bespok3d/u1-remote-scr
 # -> dist/remote-screen-<ver>.b3 + dist/remote-screen.atom.json
 ```
 
+Writing a plugin of your own? Start at the plugin documentation:
+[Bespok3d/b3-builder/doc](https://github.com/Bespok3d/b3-builder/tree/main/doc).
+
 ## Releasing
 
 Bump `remote-screen/manifest.json` `version` and push the tag `plugin-<name>-v<version>` naming that

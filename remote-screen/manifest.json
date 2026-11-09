@@ -1,7 +1,7 @@
 {
   "name": "remote-screen",
   "title": "Remote Screen",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "license": "https://github.com/Bespok3d/u1-remote-screen/blob/dev/remote-screen/doc/LICENSE",
   "author": "bespoked",
   "min_daemon_version": "0.10.1",
@@ -12,7 +12,7 @@
   "printer_specific": true,
   "changelog": "doc/CHANGELOG.md",
   "published_at": "2025-07-30",
-  "updated_at": "2026-07-28",
+  "updated_at": "2026-11-09",
   "source": "https://github.com/Bespok3d/u1-remote-screen",
   "publisher": "PLACEHOLDER",
   "provides": [

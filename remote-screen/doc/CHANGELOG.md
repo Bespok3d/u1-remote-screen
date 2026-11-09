@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.23
+
+- In Fluidd and Mainsail the screen now fills its camera tile, and grows with it when you open the
+  tile full screen. Before, it stayed small in the middle of the tile.
+
 ## 0.1.22
 
 - Licensing only, nothing about how the plugin works has changed. The files it installs that came

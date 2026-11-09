@@ -37,6 +37,7 @@ run_check "ruff"     ruff_in_dir "$PLUGIN_DIR" files/bin tests
 run_check "mypy"     mypy_in_dir "$PLUGIN_DIR" files/bin/touch_input.py files/bin/gui_watchdog.py
 # The screen's auth is shared with the app, so its behaviour is pinned by a node test next to it.
 run_check "js auth"  node --test "$PLUGIN_DIR/tests/auth.behavior.test.mjs"
+run_check "js fit"   node --test "$PLUGIN_DIR/tests/screen-fit.behavior.test.mjs"
 
 release_trigger_check "$REPO_ROOT"
 manifest_origin_check "$REPO_ROOT"

@@ -1,7 +1,7 @@
 {
   "name": "remote-screen",
   "title": "Remote Screen",
-  "version": "0.1.23",
+  "version": "0.1.23-pre",
   "license": "https://github.com/Bespok3d/u1-remote-screen/blob/dev/remote-screen/doc/LICENSE",
   "author": "bespoked",
   "min_daemon_version": "0.10.1",
